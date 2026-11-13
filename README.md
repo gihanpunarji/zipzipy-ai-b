@@ -169,7 +169,7 @@ CONTEXTIQ_IDENTITY_SMOKE=true ./mvnw -Dtest=AssistantIdentityLiveTests test
 
 The application now supports organizations with multiple independent workspaces, Admin/Editor/Viewer membership, nested folders, workspace-scoped documents and private workspace-bound conversations. Access is checked in the backend and in vector retrieval SQL. Existing content migrates into each user's private Personal workspace without re-embedding.
 
-Start at **Workspaces**: create an organization, create its workspaces, invite registered accounts to the organization, wait for acceptance, then assign workspace roles through **Members**. Organization membership alone does not grant workspace knowledge access. The detail page provides **Overview, Knowledge, Workspace assistant, Members, Settings**. New folder forms include a parent selector; chat folder scope includes descendants.
+Start at **Workspaces**: create an organization, create its workspaces, invite registered accounts to the organization, wait for acceptance, then assign workspace roles through **Members**. Organization membership alone does not grant workspace knowledge access. Each workspace opens in its own console with a dedicated sidebar for **Overview, Knowledge, Workspace assistant, Members & access, Workspace settings**. New folder forms include a parent selector; chat folder scope includes descendants.
 
 This is a schema migration: back up PostgreSQL, rebuild the backend, and refresh the frontend. The existing frontend now requires the workspace endpoints. See [workspace setup, permissions, API behavior and migration checks](docs/workspaces.md). No services are started automatically. Membership uses invitations to existing accounts; optional email uses JavaMailSender. Fine-grained document grants are deferred.
 
@@ -180,3 +180,9 @@ The bell beside the account avatar shows persisted organization invitations with
 Email defaults to disabled. Populate the `MAIL_*` placeholders in the backend `.env.example` into your existing ignored `.env`, then set `MAIL_ENABLED=true` to enable JavaMailSender delivery. In-app invites work without SMTP. [Email setup, rollout steps, delivery retries and manual checks](docs/notifications.md) explains the configuration. Rebuild the backend manually to apply V9; no services have been restarted by this change.
 
 Workspaces now have searchable cards, organization filters, linked breadcrumbs and a distinct **Workspace assistant**. The main **Personal assistant** always uses your Personal workspace; selecting a team does not mix its knowledge into personal chat. Individual file/folder selection and saved conversation scopes remain available.
+
+### Organization member management and workspace console (V10)
+
+Use **Organizations → Manage members** to search members, change Admin/Member roles, remove members and cancel invitations. Acceptance is still required before organization membership becomes active. Removal revokes every workspace grant in that organization and preserves stored content. Last-admin, Personal-owner and workspace-admin protections are enforced in the backend.
+
+Opening a workspace now enters a dedicated console with workspace navigation in its sidebar, a workspace selector, breadcrumbs and a return link to all workspaces. The old workspace tab layout is removed. Existing section URLs still work. [Management rules, endpoints and manual rollout](docs/organization-management.md) cover V10; rebuild the backend manually to activate the new controls.

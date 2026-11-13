@@ -261,8 +261,29 @@ Invitation DTO example (UUID strings abbreviated):
 }
 ```
 
-`status`: PENDING, ACCEPTED, REJECTED, EXPIRED (computed from expiration for unanswered invitations). `emailStatus`: DISABLED, QUEUED, PROCESSING, SENT, FAILED, CANCELLED. SENT means SMTP accepted submission; delivery/read receipts are not implemented. All timestamps are UTC.
+`status`: PENDING, ACCEPTED, REJECTED, EXPIRED (computed from expiration for unanswered invitations), CANCELLED (V10). `emailStatus`: DISABLED, QUEUED, PROCESSING, SENT, FAILED, CANCELLED. SENT means SMTP accepted submission; delivery/read receipts are not implemented. All timestamps are UTC.
 
 Errors: malformed requests **400**, missing session **401**, missing CSRF or insufficient role **403**, unknown account/org or another recipient's invitation **404**, already-active membership / duplicate pending invite / conflicting response / invalid retry / inviter no longer authorized **409**, expired response **410**. Repeating the same completed decision returns **200** without duplicate membership. Accepting never grants a workspace role or restores old workspace grants. SMTP failures are asynchronous and do not change a successful invitation-creation HTTP response.
 
 The notification bell polls every 30 seconds; this version does not use WebSockets or push notifications. See [email configuration and delivery semantics](notifications.md).
+
+## Organization member management (V10)
+
+All endpoints require the current user to be an active organization Admin. Mutations require CSRF; `PATCH` is allowed only from the configured frontend CORS origin.
+
+| Endpoint | Contract |
+| --- | --- |
+| `GET /api/v1/organizations/{id}/members` | **200** active member array; now also includes `workspaceCount` (non-deleted workspaces with an active workspace grant). |
+| `PATCH /api/v1/organizations/{id}/members/{userId}` | `{ "role": "ADMIN" }` or `{ "role": "MEMBER" }`; **204**. Changes only an already-active member's organization role. Workspace roles remain unchanged. |
+| `DELETE /api/v1/organizations/{id}/members/{userId}` | **204**. Deactivates organization membership and all grants in that organization; does not delete the account or its content. |
+| `DELETE /api/v1/organizations/{id}/invitations/{invitationId}` | **200** updated invitation with `status: "CANCELLED"`. Withdraws a pending invite; repeating cancellation returns the same status. |
+
+Organization member example:
+
+```json
+{"userId":"<user-uuid>","firstName":"Alex","lastName":"Example","email":"alex@example.com","role":"MEMBER","workspaceCount":2}
+```
+
+**400** for invalid roles/DTOs; **401** for no session; **403** for non-admin members/missing CSRF; **404** for inaccessible organizations, inactive/unknown/cross-organization targets or mismatched invitations; **409** for last-admin demotion/removal, modifying the Personal owner, removal that orphans a workspace, or cancellation of a non-pending invitation.
+
+Demoting or removing an inviter cancels their pending invitations; they cannot later be accepted even if the inviter is promoted again. Cancelled invitations do not block new invitations to that recipient. Removal requires a replacement workspace Admin wherever the target is the sole active Admin; a rejection rolls back the entire removal. See [management and concurrency rules](organization-management.md).

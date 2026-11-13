@@ -10,5 +10,5 @@ WORKDIR /app
 RUN groupadd --system app && useradd --system --gid app app
 COPY --from=build --chown=app:app /build/target/ContextIQ-0.0.1-SNAPSHOT.war app.war
 USER app
-EXPOSE 8080
+EXPOSE 8081
 ENTRYPOINT ["java", "-jar", "/app/app.war"]

@@ -21,8 +21,8 @@ public class WorkspaceService {
     public record WorkspaceView(UUID id,UUID organizationId,String organizationName,String name,String description,
         String role,boolean personal,long documentCount,long folderCount,long memberCount,UUID createdBy,Instant createdAt) {}
     public record MemberView(UUID userId,String firstName,String lastName,String email,String role) {}
-    private final JdbcTemplate jdbc; private final CurrentUser current; private final WorkspaceAccess access;
-    public WorkspaceService(JdbcTemplate jdbc,CurrentUser current,WorkspaceAccess access) { this.jdbc=jdbc;this.current=current;this.access=access; }
+    private final JdbcTemplate jdbc; private final CurrentUser current; private final WorkspaceAccess access; private final OrganizationAccess organizationAccess;
+    public WorkspaceService(JdbcTemplate jdbc,CurrentUser current,WorkspaceAccess access,OrganizationAccess organizationAccess) { this.jdbc=jdbc;this.current=current;this.access=access;this.organizationAccess=organizationAccess; }
     public List<OrganizationView> organizations() {
         UUID user=current.get().getId(); access.ensurePersonal(user);
         return jdbc.query("SELECT o.id,o.name,m.role FROM organizations o JOIN organization_members m ON m.organization_id=o.id WHERE m.user_id=? AND m.active=TRUE ORDER BY o.name,o.id",
@@ -33,11 +33,6 @@ public class WorkspaceService {
         jdbc.update("INSERT INTO organizations VALUES (?, ?, ?, CURRENT_TIMESTAMP)",id,name,user);
         jdbc.update("INSERT INTO organization_members VALUES (?, ?, 'ADMIN', TRUE)",id,user);
         return new OrganizationView(id,name,"ADMIN");
-    }
-    private void orgAdmin(UUID organization) {
-        var roles=jdbc.queryForList("SELECT role FROM organization_members WHERE organization_id=? AND user_id=? AND active=TRUE",String.class,organization,current.get().getId());
-        if (roles.isEmpty()) throw WorkspaceAccess.missing();
-        if (!roles.getFirst().equals("ADMIN")) throw forbidden("Organization admin access is required");
     }
     public List<WorkspaceView> list() {
         UUID user=current.get().getId(); access.ensurePersonal(user);
@@ -57,7 +52,7 @@ public class WorkspaceService {
         return list().stream().filter(w->w.id().equals(id)).findFirst().orElseThrow(WorkspaceAccess::missing);
     }
     @Transactional public WorkspaceView create(UUID organization,WorkspaceRequest request) {
-        orgAdmin(organization); UUID id=UUID.randomUUID(),user=current.get().getId();
+        organizationAccess.lockAdmin(organization); UUID id=UUID.randomUUID(),user=current.get().getId();
         try { jdbc.update("INSERT INTO workspaces VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, FALSE, FALSE)",id,organization,name(request.name()),description(request.description()),user); }
         catch (DuplicateKeyException e) { throw conflict("A workspace with this name already exists"); }
         jdbc.update("INSERT INTO workspace_members VALUES (?, ?, ?, 'ADMIN', TRUE, ?)",id,organization,user,UUID.randomUUID());
@@ -79,11 +74,6 @@ public class WorkspaceService {
         var scope=access.require(workspace,current.get().getId());scope.admin();
         return jdbc.query("SELECT u.id,u.first_name,u.last_name,u.email,m.role FROM workspace_members m JOIN app_users u ON u.id=m.user_id WHERE m.workspace_id=? AND m.active=TRUE ORDER BY u.email",
             (rs,row)->new MemberView(rs.getObject(1,UUID.class),rs.getString(2),rs.getString(3),rs.getString(4),rs.getString(5)),workspace);
-    }
-    public List<MemberView> organizationMembers(UUID organization) {
-        orgAdmin(organization);
-        return jdbc.query("SELECT u.id,u.first_name,u.last_name,u.email,m.role FROM organization_members m JOIN app_users u ON u.id=m.user_id WHERE m.organization_id=? AND m.active=TRUE ORDER BY u.email",
-            (rs,row)->new MemberView(rs.getObject(1,UUID.class),rs.getString(2),rs.getString(3),rs.getString(4),rs.getString(5)),organization);
     }
     @Transactional public void setMember(UUID workspace,MemberRequest request) {
         var scope=access.lock(access.require(workspace,current.get().getId()));scope.admin();
