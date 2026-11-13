@@ -9,11 +9,12 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1")
 public class WorkspaceController {
     private final WorkspaceService service;
-    public WorkspaceController(WorkspaceService service) { this.service=service; }
+    private final com.gihan.contextioq.ContextIQ.notification.InvitationService invitations;
+    public WorkspaceController(WorkspaceService service,com.gihan.contextioq.ContextIQ.notification.InvitationService invitations) { this.service=service; this.invitations=invitations; }
     @GetMapping("/organizations") public List<OrganizationView> organizations() { return service.organizations(); }
     @PostMapping("/organizations") @ResponseStatus(HttpStatus.CREATED) public OrganizationView createOrganization(@Valid @RequestBody NameRequest r) { return service.createOrganization(r); }
     @GetMapping("/organizations/{id}/members") public List<MemberView> organizationMembers(@PathVariable UUID id) { return service.organizationMembers(id); }
-    @PostMapping("/organizations/{id}/members") @ResponseStatus(HttpStatus.NO_CONTENT) public void addOrganizationMember(@PathVariable UUID id,@Valid @RequestBody OrganizationMemberRequest r) { service.addOrganizationMember(id,r); }
+    @PostMapping("/organizations/{id}/members") @ResponseStatus(HttpStatus.CREATED) public com.gihan.contextioq.ContextIQ.notification.InvitationService.InvitationView invite(@PathVariable UUID id,@Valid @RequestBody OrganizationMemberRequest r) { return invitations.invite(id,r.email()); }
     @PostMapping("/organizations/{id}/workspaces") @ResponseStatus(HttpStatus.CREATED) public WorkspaceView create(@PathVariable UUID id,@Valid @RequestBody WorkspaceRequest r) { return service.create(id,r); }
     @GetMapping("/workspaces") public List<WorkspaceView> list() { return service.list(); }
     @GetMapping("/workspaces/{id}") public WorkspaceView get(@PathVariable UUID id) { return service.get(id); }

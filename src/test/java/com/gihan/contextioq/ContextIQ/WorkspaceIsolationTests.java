@@ -111,7 +111,10 @@ class WorkspaceIsolationTests {
         String roleBody="{\"email\":\""+email+"\",\"role\":\"VIEWER\"}";
         mvc.perform(auth(post("/api/v1/workspaces/"+hr+"/members"),admin,null).contentType(MediaType.APPLICATION_JSON).content(roleBody)).andExpect(status().isConflict());
         mvc.perform(auth(post("/api/v1/organizations/"+organization+"/members"),editor,null).contentType(MediaType.APPLICATION_JSON).content("{\"email\":\""+email+"\"}")).andExpect(status().isForbidden());
-        mvc.perform(auth(post("/api/v1/organizations/"+organization+"/members"),admin,null).contentType(MediaType.APPLICATION_JSON).content("{\"email\":\""+email+"\"}")).andExpect(status().isNoContent());
+        mvc.perform(auth(post("/api/v1/organizations/"+organization+"/members"),admin,null).contentType(MediaType.APPLICATION_JSON).content("{\"email\":\""+email+"\"}")).andExpect(status().isCreated());
+        mvc.perform(auth(post("/api/v1/workspaces/"+hr+"/members"),admin,null).contentType(MediaType.APPLICATION_JSON).content(roleBody)).andExpect(status().isConflict());
+        UUID invite=jdbc.queryForObject("SELECT id FROM organization_invitations WHERE organization_id=? AND recipient_id=?",UUID.class,organization,newcomer);
+        mvc.perform(auth(post("/api/v1/notifications/"+invite+"/respond"),newcomer,null).contentType(MediaType.APPLICATION_JSON).content("{\"decision\":\"ACCEPT\"}")).andExpect(status().isOk());
         mvc.perform(auth(get("/api/v1/documents"),newcomer,hr)).andExpect(status().isNotFound());
         mvc.perform(auth(post("/api/v1/workspaces/"+hr+"/members"),admin,null).contentType(MediaType.APPLICATION_JSON).content(roleBody)).andExpect(status().isNoContent());
         mvc.perform(auth(get("/api/v1/documents"),newcomer,hr)).andExpect(status().isOk());

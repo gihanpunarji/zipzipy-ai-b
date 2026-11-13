@@ -59,3 +59,9 @@ The first folder implementation is deliberately flat and single-parent. Folder d
 The current authorization boundary is an organization-consistent workspace, implemented by `workspace.WorkspaceAccess` and `workspace.WorkspaceService`. Account-only statements above describe earlier phases. Shared document/folder operations now use workspace scope; `owner_id` retains creator attribution. Conversations require both authorship and current workspace access. All retrieval and source histories enforce that boundary on the server.
 
 V8 supplies composite tenant FKs, nested folder relationships, membership role/version records, creator membership references and a persistent resource registry for deleted-source tombstones. The frontend scopes requests and caches to the active workspace, but this is not the authorization mechanism. See [workspaces.md](workspaces.md) for the full current model, role matrix, migration and remaining limitations.
+
+### Account invitation lifecycle
+
+`notification` owns organization invitation creation, recipient-only notification queries, acceptance/rejection and a JavaMailSender outbox worker. Flyway V9 stores both invitation and mail-delivery state. Organization-row locking serializes duplicate invitation checks and acceptance; the membership row is created only after recipient acceptance. Workspace grants are separate and existing RAG authorization is unchanged. Mail is delivered outside the database transaction with a short lease and bounded retries; SMTP failures leave in-app invitations intact. See [notifications](notifications.md).
+
+The frontend separates personal chat (`/chat`, always the user's Personal workspace) from workspace assistants (`/workspaces/:id/assistant`). Both send explicit scope headers; the backend independently authorizes that scope. Workspace chats default to selecting documents/folders and retain the established private conversation history.

@@ -113,7 +113,7 @@ See [authentication setup and auth API](docs/authentication.md), [API contract](
 
 ## Limitations and next steps
 
-OLLAMA mode calls your local model through Spring AI; MOCK mode remains deterministic and never calls a provider. Documents are real, private PDF/DOC/DOCX/TXT/Markdown uploads with local Nomic embeddings, pgvector retrieval and saved source excerpts. Dashboard metrics and recent activity remain synthetic. OCR, background ingestion, hybrid ranking, workspace membership, account linking, and agents remain deferred. Conversations are private to their owning account. History is unpaginated for Phase 0; add bounded pagination before larger datasets. Sending is transactional, but retries are not idempotent: after an ambiguous timeout, inspect history before retrying. Token usage is recorded on generated assistant messages; streaming is deferred.
+OLLAMA mode calls your local model through Spring AI; MOCK mode remains deterministic and never calls a provider. Documents are real, private PDF/DOC/DOCX/TXT/Markdown uploads with local Nomic embeddings, pgvector retrieval and saved source excerpts. Dashboard metrics and recent activity remain synthetic. OCR, background ingestion, hybrid ranking, account linking, and agents remain deferred. Conversations are private to their owning account. History is unpaginated for Phase 0; add bounded pagination before larger datasets. Sending is transactional, but retries are not idempotent: after an ambiguous timeout, inspect history before retrying. Token usage is recorded on generated assistant messages; streaming is deferred.
 
 Phase 3 adds opt-in grounded chat using documents owned by the signed-in account. See [Phase 3 setup, evaluation and limitations](docs/phase-3-rag.md). Streaming and agents remain deferred. Spring AI 2.0.2 provides the native Ollama integration. See [Phase 2 setup and limitations](docs/phase-2-ollama.md).
 
@@ -169,6 +169,14 @@ CONTEXTIQ_IDENTITY_SMOKE=true ./mvnw -Dtest=AssistantIdentityLiveTests test
 
 The application now supports organizations with multiple independent workspaces, Admin/Editor/Viewer membership, nested folders, workspace-scoped documents and private workspace-bound conversations. Access is checked in the backend and in vector retrieval SQL. Existing content migrates into each user's private Personal workspace without re-embedding.
 
-Start at **Workspaces**: create an organization, create its workspaces, add registered accounts to the organization, then assign workspace roles through **Members**. Organization membership alone does not grant workspace knowledge access. The detail page provides **Overview, Knowledge, Assistant, Members, Settings**. New folder forms include a parent selector; chat folder scope includes descendants.
+Start at **Workspaces**: create an organization, create its workspaces, invite registered accounts to the organization, wait for acceptance, then assign workspace roles through **Members**. Organization membership alone does not grant workspace knowledge access. The detail page provides **Overview, Knowledge, Workspace assistant, Members, Settings**. New folder forms include a parent selector; chat folder scope includes descendants.
 
-This is a schema migration: back up PostgreSQL, rebuild the backend, and refresh the frontend. The existing frontend now requires the workspace endpoints. See [workspace setup, permissions, API behavior and migration checks](docs/workspaces.md). No services are started automatically. Membership uses existing accounts; email invitations and fine-grained document grants are deferred.
+This is a schema migration: back up PostgreSQL, rebuild the backend, and refresh the frontend. The existing frontend now requires the workspace endpoints. See [workspace setup, permissions, API behavior and migration checks](docs/workspaces.md). No services are started automatically. Membership uses invitations to existing accounts; optional email uses JavaMailSender. Fine-grained document grants are deferred.
+
+### Account notifications and invitations (V9)
+
+The bell beside the account avatar shows persisted organization invitations with Accept/Decline actions. Inviting an account no longer activates membership. After acceptance, an admin assigns workspace access separately. Existing active memberships remain unchanged.
+
+Email defaults to disabled. Populate the `MAIL_*` placeholders in the backend `.env.example` into your existing ignored `.env`, then set `MAIL_ENABLED=true` to enable JavaMailSender delivery. In-app invites work without SMTP. [Email setup, rollout steps, delivery retries and manual checks](docs/notifications.md) explains the configuration. Rebuild the backend manually to apply V9; no services have been restarted by this change.
+
+Workspaces now have searchable cards, organization filters, linked breadcrumbs and a distinct **Workspace assistant**. The main **Personal assistant** always uses your Personal workspace; selecting a team does not mix its knowledge into personal chat. Individual file/folder selection and saved conversation scopes remain available.

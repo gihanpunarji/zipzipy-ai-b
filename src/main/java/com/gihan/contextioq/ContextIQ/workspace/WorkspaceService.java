@@ -85,20 +85,12 @@ public class WorkspaceService {
         return jdbc.query("SELECT u.id,u.first_name,u.last_name,u.email,m.role FROM organization_members m JOIN app_users u ON u.id=m.user_id WHERE m.organization_id=? AND m.active=TRUE ORDER BY u.email",
             (rs,row)->new MemberView(rs.getObject(1,UUID.class),rs.getString(2),rs.getString(3),rs.getString(4),rs.getString(5)),organization);
     }
-    @Transactional public void addOrganizationMember(UUID organization,OrganizationMemberRequest request) {
-        orgAdmin(organization);
-        jdbc.queryForObject("SELECT id FROM organizations WHERE id=? FOR UPDATE",UUID.class,organization);
-        UUID user=findUser(request.email());
-        // Adding organization membership does not grant workspace access or organization administration.
-        if (jdbc.update("UPDATE organization_members SET active=TRUE WHERE organization_id=? AND user_id=?",organization,user)==0)
-            jdbc.update("INSERT INTO organization_members VALUES (?, ?, 'MEMBER', TRUE)",organization,user);
-    }
     @Transactional public void setMember(UUID workspace,MemberRequest request) {
         var scope=access.lock(access.require(workspace,current.get().getId()));scope.admin();
         if (get(workspace).personal()) throw conflict("Personal workspaces cannot be shared");
         UUID user=findUser(request.email());
         if (jdbc.queryForObject("SELECT COUNT(*) FROM organization_members WHERE organization_id=? AND user_id=? AND active=TRUE",Integer.class,scope.organizationId(),user)==0)
-            throw conflict("Add this account to the organization before assigning a workspace role");
+            throw conflict("This account must accept its organization invitation before receiving workspace access");
         protectLastAdmin(workspace,user,request.role()!=WorkspaceAccess.Role.ADMIN);
         if (jdbc.update("UPDATE workspace_members SET role=?,active=TRUE,access_version=? WHERE workspace_id=? AND user_id=?",request.role().name(),UUID.randomUUID(),workspace,user)==0)
             jdbc.update("INSERT INTO workspace_members VALUES (?, ?, ?, ?, TRUE, ?)",workspace,scope.organizationId(),user,request.role().name(),UUID.randomUUID());

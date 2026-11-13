@@ -214,7 +214,7 @@ All existing document, folder and chat endpoints now accept `X-Workspace-Id`. Th
 | `GET /api/v1/organizations` | List caller's active organization memberships: `id,name,role` |
 | `POST /api/v1/organizations` | `{ "name":"Acme" }`; creates organization and Admin membership; **201** |
 | `GET /api/v1/organizations/{id}/members` | Organization Admin-only roster |
-| `POST /api/v1/organizations/{id}/members` | `{ "email":"registered@example.com" }`; adds an existing account as organization MEMBER, **204**. Does not grant organization Admin or workspace access |
+| `POST /api/v1/organizations/{id}/members` | Organization Admin invites a registered account using `{ "email": "registered@example.com" }`; **201** invitation DTO; no membership created |
 | `POST /api/v1/organizations/{id}/workspaces` | Organization Admin-only; `{ "name":"HR","description":"HR policies" }`; **201** |
 | `GET /api/v1/workspaces` | List accessible active workspaces and real document/folder/member counts |
 | `GET /api/v1/workspaces/{id}` | Workspace details, requiring membership |
@@ -224,7 +224,7 @@ All existing document, folder and chat endpoints now accept `X-Workspace-Id`. Th
 | `POST /api/v1/workspaces/{id}/members` | Admin-only `{ "email":"registered@example.com","role":"VIEWER" }`; add/update membership, **204** |
 | `DELETE /api/v1/workspaces/{id}/members/{userId}` | Admin-only access revocation, **204** |
 
-Workspace roles are `ADMIN`, `EDITOR`, `VIEWER`. Adding a workspace member who is not an active organization member returns **409**. Unknown registered accounts return **404**. Last-Admin removal/demotion, sharing Personal workspaces, and duplicate workspace/folder names return **409**. Invalid DTOs return **400**. No invitations or emails are sent by these endpoints.
+Workspace roles are `ADMIN`, `EDITOR`, `VIEWER`. Adding a workspace member who is not an active organization member returns **409**. Unknown registered accounts return **404**. Last-Admin removal/demotion, sharing Personal workspaces, and duplicate workspace/folder names return **409**. Invalid DTOs return **400**. Organization membership requires invitation acceptance; optional email is delivered asynchronously. See the notification contract below.
 
 Workspace response example:
 
@@ -235,3 +235,34 @@ Workspace response example:
 Member response fields: `userId,firstName,lastName,email,role`. The workspace role version is checked again after generation; revoked access returns **404**, changed role/version **409**, and no generated answer or new turn is persisted. Existing source excerpts stay tenant-scoped through immutable resource references.
 
 See [workspace design and rollout](workspaces.md) for migration, privacy, deletion semantics and test limitations.
+
+## Organization invitations / account notifications (V9)
+
+Session authentication is required; all POSTs require CSRF. These account-level endpoints do not use `X-Workspace-Id`.
+
+| Endpoint | Response / behavior |
+| --- | --- |
+| `POST /api/v1/organizations/{id}/members` | Admin sends `{ "email": "registered@example.com" }`; **201** invitation DTO. Does not activate membership. |
+| `GET /api/v1/notifications?offset=0` | **200** `{ "items": [invitation], "unreadCount": 1, "hasMore": false }`. Recipient-only, newest first; 20 per page, offset 0–10000. |
+| `POST /api/v1/notifications/read` | **204**, marks all of the current recipient's notifications read. |
+| `POST /api/v1/notifications/{id}/respond` | `{ "decision": "ACCEPT" }` or `{ "decision": "REJECT" }`; **200** updated invitation. Acceptance creates/reactivates organization MEMBER only. |
+| `GET /api/v1/organizations/{id}/invitations` | **200** array of latest 100 sent invitations; organization Admin only. |
+| `POST /api/v1/organizations/{id}/invitations/{invitationId}/email` | **200** updated invitation, queues a pending FAILED/DISABLED email. Requires organization Admin and mail enabled. |
+
+Invitation DTO example (UUID strings abbreviated):
+
+```json
+{
+  "id": "<invitation-uuid>", "organizationId": "<organization-uuid>",
+  "organizationName": "Acme", "recipientEmail": "member@example.com",
+  "invitedByName": "Admin Example", "status": "PENDING",
+  "createdAt": "2026-11-13T02:00:00Z", "expiresAt": "2026-11-20T02:00:00Z",
+  "readAt": null, "emailStatus": "DISABLED"
+}
+```
+
+`status`: PENDING, ACCEPTED, REJECTED, EXPIRED (computed from expiration for unanswered invitations). `emailStatus`: DISABLED, QUEUED, PROCESSING, SENT, FAILED, CANCELLED. SENT means SMTP accepted submission; delivery/read receipts are not implemented. All timestamps are UTC.
+
+Errors: malformed requests **400**, missing session **401**, missing CSRF or insufficient role **403**, unknown account/org or another recipient's invitation **404**, already-active membership / duplicate pending invite / conflicting response / invalid retry / inviter no longer authorized **409**, expired response **410**. Repeating the same completed decision returns **200** without duplicate membership. Accepting never grants a workspace role or restores old workspace grants. SMTP failures are asynchronous and do not change a successful invitation-creation HTTP response.
+
+The notification bell polls every 30 seconds; this version does not use WebSockets or push notifications. See [email configuration and delivery semantics](notifications.md).

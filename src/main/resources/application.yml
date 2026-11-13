@@ -1,4 +1,17 @@
 spring:
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail.smtp.auth: ${MAIL_SMTP_AUTH:true}
+      mail.smtp.starttls.enable: ${MAIL_STARTTLS_ENABLED:true}
+      mail.smtp.starttls.required: ${MAIL_STARTTLS_ENABLED:true}
+      mail.smtp.ssl.enable: ${MAIL_SSL_ENABLED:false}
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 5000
+      mail.smtp.writetimeout: 5000
   servlet:
     multipart:
       max-file-size: 10MB
@@ -32,6 +45,11 @@ server:
   address: ${SERVER_ADDRESS:127.0.0.1}
   port: ${PORT:8080}
 contextiq:
+  mail:
+    enabled: ${MAIL_ENABLED:false}
+    from: ${MAIL_FROM:}
+  invitations:
+    ttl-days: ${INVITATION_TTL_DAYS:7}
   rag:
     embedding-model: ${OLLAMA_EMBEDDING_MODEL:nomic-embed-text:latest}
     min-score: ${RAG_MIN_SCORE:0.45}
