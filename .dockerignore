@@ -4,3 +4,5 @@
 .env.*
 target
 *.log
+
+backups

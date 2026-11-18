@@ -1,0 +1,101 @@
+# Standalone file: do not merge with the local docker-compose.yml.
+name: contextiq-production
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+services:
+  web:
+    build: ../ContextIQ-frontend
+    restart: unless-stopped
+    environment:
+      PUBLIC_HOST: ${PUBLIC_HOST:?Run deploy/configure.py}
+      ACME_EMAIL: ${ACME_EMAIL:?Set certificate email}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - backend
+    logging: *logging
+  backend:
+    build: .
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SERVER_ADDRESS: 0.0.0.0
+      PORT: 8081
+      SERVER_FORWARD_HEADERS_STRATEGY: framework
+      FRONTEND_URL: https://${PUBLIC_HOST:?Set PUBLIC_HOST}
+      SESSION_COOKIE_SECURE: "true"
+      DB_URL: jdbc:postgresql://postgres:5432/contextiq
+      DB_USERNAME: contextiq
+      DB_PASSWORD: ${DB_PASSWORD:?Run deploy/configure.py}
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=65.0
+      AI_MODE: OLLAMA
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma4:e2b}
+      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text:latest}
+      OLLAMA_CONTEXT_SIZE: ${OLLAMA_CONTEXT_SIZE:-8192}
+      OLLAMA_MAX_OUTPUT_TOKENS: ${OLLAMA_MAX_OUTPUT_TOKENS:-800}
+      GOOGLE_LOGIN_ENABLED: ${GOOGLE_LOGIN_ENABLED:-false}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      MAIL_ENABLED: ${MAIL_ENABLED:-false}
+      MAIL_HOST: ${MAIL_HOST:-localhost}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      MAIL_SMTP_AUTH: ${MAIL_SMTP_AUTH:-true}
+      MAIL_STARTTLS_ENABLED: ${MAIL_STARTTLS_ENABLED:-true}
+      MAIL_SSL_ENABLED: ${MAIL_SSL_ENABLED:-false}
+    mem_limit: 2g
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    logging: *logging
+  postgres:
+    build:
+      context: .
+      dockerfile: Dockerfile.postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: contextiq
+      POSTGRES_USER: contextiq
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Run deploy/configure.py}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    mem_limit: 1g
+    logging: *logging
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+      OLLAMA_MAX_LOADED_MODELS: "1"
+      OLLAMA_NUM_PARALLEL: "1"
+    volumes:
+      - ollama-data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    mem_limit: 7g
+    logging: *logging
+volumes:
+  postgres-data:
+  ollama-data:
+  caddy-data:
+  caddy-config:

@@ -56,6 +56,37 @@ class WorkspaceIsolationTests {
     MockHttpServletRequestBuilder auth(MockHttpServletRequestBuilder request,UUID user,UUID workspace) { request.with(user(user.toString())).with(csrf());if(workspace!=null)request.header("X-Workspace-Id",workspace.toString());return request; }
     DocumentView document(UUID workspace,String name) { return documents.insert(access.require(workspace,admin),name,10,"nomic",List.of("Evidence"),List.of(new float[]{1})); }
 
+    @Test void dashboardUsesPersistedDataAndKeepsConversationActivityPrivate() throws Exception {
+        document(hr,"shared-policy.txt");
+        document(finance,"secret-finance.txt");
+        mvc.perform(auth(post("/api/v1/chat/messages"),viewer,hr).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"message\":\"My question\"}")).andExpect(status().isOk());
+        mvc.perform(auth(post("/api/v1/chat/messages"),editor,hr).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"message\":\"Private editor question\"}")).andExpect(status().isOk());
+        mvc.perform(auth(get("/api/v1/dashboard/summary"),viewer,hr))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.mode").value("LIVE"))
+            .andExpect(jsonPath("$.workspaceId").value(hr.toString()))
+            .andExpect(jsonPath("$.documents").value(1))
+            .andExpect(jsonPath("$.conversations").value(1))
+            .andExpect(jsonPath("$.queries").value(1))
+            .andExpect(jsonPath("$.workspaces").value(2))
+            .andExpect(jsonPath("$.recentActivity.length()").value(2))
+            .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("secret-finance"))))
+            .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Private editor"))));
+        mvc.perform(auth(get("/api/v1/dashboard/summary"),viewer,finance)).andExpect(status().isNotFound());
+        jdbc.update("UPDATE organization_members SET active=FALSE WHERE organization_id=? AND user_id=?",organization,viewer);
+        mvc.perform(auth(get("/api/v1/dashboard/summary"),viewer,hr)).andExpect(status().isNotFound());
+        mvc.perform(auth(get("/api/v1/dashboard/summary"),viewer,viewer)).andExpect(jsonPath("$.workspaces").value(1));
+    }
+
+    @Test void dashboardHasAnHonestEmptyStateAndRequiresAuthentication() throws Exception {
+        mvc.perform(auth(get("/api/v1/dashboard/summary"),viewer,viewer))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.documents").value(0))
+            .andExpect(jsonPath("$.conversations").value(0)).andExpect(jsonPath("$.queries").value(0))
+            .andExpect(jsonPath("$.recentActivity.length()").value(0));
+        mvc.perform(get("/api/v1/dashboard/summary")).andExpect(status().isUnauthorized());
+    }
+
     @Test void membersShareOnlyTheirWorkspaceAndViewerCannotMutate() throws Exception {
         var hrDoc=document(hr,"policy.txt");var financeDoc=document(finance,"confidential.txt");
         mvc.perform(auth(get("/api/v1/documents"),viewer,hr)).andExpect(jsonPath("$.length()").value(1)).andExpect(jsonPath("$[0].createdBy").value(admin.toString()));

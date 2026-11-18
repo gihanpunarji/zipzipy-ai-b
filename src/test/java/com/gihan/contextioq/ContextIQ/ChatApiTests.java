@@ -120,7 +120,7 @@ class ChatApiTests {
       .andExpect(jsonPath("$.application").value("ContextIQ"));
     mvc
       .perform(get("/api/v1/dashboard/summary"))
-      .andExpect(jsonPath("$.mode").value("MOCK"));
+      .andExpect(jsonPath("$.mode").value("LIVE"));
   }
 
   @Test

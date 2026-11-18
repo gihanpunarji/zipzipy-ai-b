@@ -12,11 +12,16 @@ Liveness/identity, not database readiness:
 
 ## GET /dashboard/summary
 
-Every count is synthetic, not persisted usage:
+Authenticated database summary. Optional `X-Workspace-Id` selects an accessible workspace; omitted means Personal. Invalid IDs return 400; inaccessible/deleted workspaces return 404; anonymous requests return 401.
 
+Illustrative response (actual values come from persisted records):
 ```json
-{"mode":"MOCK","documents":128,"conversations":24,"queries":356,"workspaces":3}
+{"mode":"LIVE","workspaceId":"10000000-0000-0000-0000-000000000001","generatedAt":"2026-11-18T04:00:00Z","documents":2,"conversations":1,"queries":3,"workspaces":2,"recentActivity":[]}
 ```
+
+`documents` counts documents currently in this workspace. `conversations` counts only the signed-in user's conversations here; `queries` counts their persisted USER messages (not failed attempts, tokens, or lifetime usage after deletion). `workspaces` counts all nondeleted workspaces with active workspace and organization membership for this account, including Personal. It is the only account-wide metric.
+
+`recentActivity` contains at most eight entries, newest first: `{ "id": "resource UUID", "type": "DOCUMENT or CONVERSATION", "title": "filename or conversation title", "occurredAt": "UTC timestamp" }`. Documents use creation time; the user's own conversations use update time. This is a view of current resources, not a permanent audit trail. Deleted documents disappear; other users' conversation titles and counts are never returned. Empty workspaces return zero counts and an empty activity array. The Overview refreshes every 30 seconds while open and on window focus; it displays its workspace scope and last refresh time.
 
 ## POST /chat/messages
 
@@ -68,7 +73,7 @@ Spring ProblemDetail (`application/problem+json`) includes `type`, `title`, `sta
 
 ## Deferred routes
 
-Workspace creation/membership, account linking and AI provider key management remain deferred. Recent dashboard activity is still demo data. Document routes and RAG are implemented as described below. Global search is a visual planned capability, not a functioning search endpoint.
+Workspace and organization membership are implemented; see the workspace documentation. Account linking and AI provider key management remain deferred. Dashboard counts and activity use permission-scoped persisted data. Document routes and RAG are implemented as described below. Global search is a visual planned capability, not a functioning search endpoint.
 
 ## Phase 2 provider contract
 

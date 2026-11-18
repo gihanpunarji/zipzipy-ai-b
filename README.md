@@ -186,3 +186,11 @@ Workspaces now have searchable cards, organization filters, linked breadcrumbs a
 Use **Organizations → Manage members** to search members, change Admin/Member roles, remove members and cancel invitations. Acceptance is still required before organization membership becomes active. Removal revokes every workspace grant in that organization and preserves stored content. Last-admin, Personal-owner and workspace-admin protections are enforced in the backend.
 
 Opening a workspace now enters a dedicated console with workspace navigation in its sidebar, a workspace selector, breadcrumbs and a return link to all workspaces. The old workspace tab layout is removed. Existing section URLs still work. [Management rules, endpoints and manual rollout](docs/organization-management.md) cover V10; rebuild the backend manually to activate the new controls.
+
+## Live Overview
+
+The account Overview (`/dashboard`) shows real data for the selected workspace: document totals, your private conversations and saved questions, recent document/conversation activity, and the number of workspaces you can access. It refreshes every 30 seconds while open. No AI call or new database migration is needed. See [the summary API contract](docs/api-contract.md#get-dashboardsummary) for scope and counting rules. Rebuild your backend container manually to serve the updated API; the existing frontend dev server picks up the source changes.
+
+## Portfolio deployment
+
+See [the single-VM deployment guide](docs/deployment.md) for the separate production Compose stack, HTTPS, Ollama setup, backups, and verification. Local development services are unchanged.
